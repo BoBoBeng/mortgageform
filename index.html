@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Mortgage Questionnaire</title>
+
+  <!-- ✅ Bootstrap -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet"/>
+
+  <!-- ✅ Vue -->
+  <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+
+  <!-- ✅ jsPDF UMD (modern way, AcroForm included) -->
+  <script src="https://unpkg.com/jspdf@latest/dist/jspdf.umd.min.js"></script>
+
+  <style>
+    body { background:#f8f9fa; }
+    canvas { border:1px solid #aaa; border-radius:6px; width:100%; height:120px; cursor:crosshair; }
+    .form-section { margin-bottom:2rem; }
+  </style>
+</head>
+<body class="py-4">
+
+<div id="app" class="container bg-white p-4 rounded shadow-sm">
+  <h3 class="text-center mb-4">🏠 Mortgage Loan Questionnaire</h3>
+
+  <!-- Applicant -->
+  <div class="form-section">
+<div class="row align-items-center">
+    <div class="col-auto">
+        <span>Applicant</span>
+    </div>
+    <div class="col-auto">
+        <div class="form-check form-check-inline">
+            <input class="form-check-input" type="radio" name="exampleRadios" id="exampleRadios1" value="main" v-model="mainorjoint">
+            <label class="form-check-label" for="exampleRadios1">
+                Main
+            </label>
+        </div>
+    </div>
+    <div class="col-auto">
+        <div class="form-check form-check-inline">
+            <input class="form-check-input" type="radio" name="exampleRadios" id="exampleRadios2" value="joint" v-model="mainorjoint">
+            <label class="form-check-label" for="exampleRadios2">
+                Joint
+            </label>
+        </div>
+    </div>
+</div>
+    <div class="row">
+      <div class="col-md-6 mb-3" v-for="q in mainApplicant" :key="q.key">
+        <label class="form-label fw-semibold">{{ q.label }}</label>
+        <div v-if="q.type==='radio'">
+          <div v-for="opt in q.options" class="form-check form-check-inline">
+            <input class="form-check-input" type="radio" :id="q.key+opt" :name="q.key" :value="opt" v-model="form[q.key]" />
+            <label class="form-check-label" :for="q.key+opt">{{ opt }}</label>
+          </div>
+        </div>
+        <input v-else class="form-control" :type="q.type" v-model="form[q.key]" />
+      </div>
+    </div>
+  </div>
+
+  <!-- Previous -->
+  <div class="form-section">
+    <h5 class="border-bottom pb-2">Previous Employement Info(if current job less than 2years)</h5>
+    <div class="row">
+      <div class="col-md-6 mb-3" v-for="q in spouse" :key="q.key">
+        <label class="form-label fw-semibold">{{ q.label }}</label>
+        <input class="form-control" :type="q.type" v-model="form[q.key]" />
+      </div>
+    </div>
+  </div>
+
+  <!-- SPOUSE -->
+  <div class="form-section">
+    <h5 class="border-bottom pb-2">Spouse Details</h5>
+    <div class="row">
+      <div class="col-md-6 mb-3" v-for="q in spouse" :key="q.key">
+        <label class="form-label fw-semibold">{{ q.label }}</label>
+        <input class="form-control" :type="q.type" v-model="form[q.key]" />
+      </div>
+    </div>
+  </div>
+
+  <!-- EMERGENCY -->
+  <div class="form-section">
+    <h5 class="border-bottom pb-2">Emergency Contact</h5>
+    <div class="row">
+      <div class="col-md-6 mb-3" v-for="q in emergency" :key="q.key">
+        <label class="form-label fw-semibold">{{ q.label }}</label>
+        <input class="form-control" :type="q.type" v-model="form[q.key]" />
+      </div>
+    </div>
+  </div>
+
+  <!-- SIGNATURE -->
+  <div class="form-section">
+    <h5 class="border-bottom pb-2">Signature</h5>
+    <p>Applicant Signature:</p>
+    <canvas id="sig"></canvas>
+    <button class="btn btn-sm btn-secondary mt-2" @click="clearSig">Clear Signature</button>
+  </div>
+
+  <!-- ACTION BUTTON -->
+  <div class="text-center mt-4 d-flex justify-content-center">
+    <button class="btn btn-primary d-none d-sm-block" @click="generatePDF">Generate Fillable PDF</button>
+    <button class="btn btn-success d-block d-sm-none" @click="shareWhatsApp">📤 Share via WhatsApp</button>
+  </div>
+</div>
+
+<script>
+const { createApp } = Vue;
+
+createApp({
+  data() {
+    return {
+      mainApplicant: [
+        { key:'name', label:'Name as per I/C', type:'text' },
+        { key:'ic', label:'I/C No.', type:'text' },
+        { key:'race', label:'Race', type:'radio', options:['Chinese','Malay','Indian','Other'] },
+        { key:'maritalstatus', label:'Marital Status', type:'radio', options:['Single','Married','Widowed'] },
+        { key:'raddr', label:'Residences Address', type:'text' },
+        { key:'rfee', label:'Rental Fee', type:'text' },
+        { key:'raddrtype', label:'Residence Type', type:'radio', options:['Owned','Mortgaged','Parents','Rented'] },
+        { key:'smoker', label:'Smoker', type:'radio', options:['Yes','No'] },
+        { key:'fhome', label:'First House', type:'radio', options:['Yes','No'] },
+        { key:'children', label:'No. of Children', type:'number' },
+        { key:'education', label:'Education Level', type:'radio', options:['Secondary','Diploma','Degree','Professional'] },
+        { key:'mailaddr', label:'Mailing Address', type:'text' },
+        { key:'mobileno', label:'Mobile No.', type:'text' },
+        { key:'email', label:'Email', type:'text' },
+        { key:'occupation', label:'Occupation', type:'text' },
+        { key:'cname', label:'Company Name', type:'text' },
+        { key:'caddr', label:'Company Address', type:'text' },
+        { key:'length', label:'Joining Date (dd/mm/yyyy)', type:'text' },
+        { key:'industry', label:'Industry', type:'text' },
+        { key:'income', label:'Monthly Income (RM)', type:'number' },
+        { key:'height', label:'Height (cm)', type:'number' },
+        { key:'weight', label:'Weight (kg)', type:'number' },
+      ],
+      previous:[
+        { key:'previous_cname', label:'Previous Company Name', type:'text' },
+        { key:'previous_occupation', label:'Previous Occupation', type:'text' },
+        { key:'previous_industry', label:'Previous Industry', type:'text' },
+        { key:'previous_lengthofservice', label:'Previous Joining Date  (dd/mm/yyyy)', type:'text' },
+      ],
+      spouse: [
+        { key:'spouse_name', label:'Name', type:'text' },
+        { key:'spouse_ic', label:'I/C No.', type:'text' },
+        { key:'spouse_mobile', label:'Mobile', type:'text' },
+        { key:'spouse_cname', label:'Company', type:'text' },
+        { key:'spouse_ofisno', label:'Office Tel No.', type:'text' },
+        { key:'spouse_occupation', label:'Position', type:'text' },
+        { key:'spouse_income', label:'Monthly Income (RM)', type:'number' },
+        { key:'spouse_email', label:'Email', type:'text' },
+      ],
+      emergency: [
+        { key:'emergency_name', label:'Name', type:'text' },
+        { key:'emergency_hpno', label:'Mobile', type:'text' },
+        { key:'emergency_relationship', label:'Relationship', type:'text' },
+        { key:'emergency_addr', label:'Address', type:'text' },
+      ],
+      form: {},
+      ctx: null,
+      mainorjoint:'main'
+    };
+  },
+  created() {
+    // Access a specific query parameter (e.g., 'id')
+    // Get the query string part of the URL (e.g., "?id=123&sort=asc")
+    const queryString = window.location.search; 
+    
+    // Create a URLSearchParams object to easily parse the query string
+    const urlParams = new URLSearchParams(queryString);
+    
+    // Get a specific value by key
+    this.mainorjoint = urlParams.get('mainorjoint'); 
+  },
+  mounted() {
+    const c = document.getElementById('sig');
+    c.width = c.offsetWidth;
+    c.height = c.offsetHeight;
+    this.ctx = c.getContext('2d');
+    let drawing = false;
+    c.addEventListener('mousedown', () => drawing = true);
+    c.addEventListener('mouseup', () => { drawing = false; this.ctx.beginPath(); });
+    c.addEventListener('mouseout', () => drawing = false);
+    c.addEventListener('mousemove', e => {
+      if (!drawing) return;
+      const r = c.getBoundingClientRect();
+      this.ctx.lineWidth = 2;
+      this.ctx.lineCap = "round";
+      this.ctx.strokeStyle = "#000";
+      this.ctx.lineTo(e.clientX - r.left, e.clientY - r.top);
+      this.ctx.stroke();
+      this.ctx.beginPath();
+      this.ctx.moveTo(e.clientX - r.left, e.clientY - r.top);
+    });
+  },
+  methods: {
+    clearSig() {
+      const c = document.getElementById('sig');
+      this.ctx.clearRect(0, 0, c.width, c.height);
+    },
+    generatePDF() {
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF();
+      const { ComboBox, TextField } = jsPDF.AcroForm;
+
+      doc.text("Mortgage Loan Questionnaire (Fillable PDF)", 10, 15);
+      let y = 30;
+
+      const addTextField = (label, key) => {
+        doc.setFontSize(10); // label
+        doc.text(`${label}:`, 10, y + 5);
+        const field = new TextField();
+        field.Rect = [65, y, 110, 8];
+        field.fieldName = this.mainorjoint+'_'+key;
+        field.defaultValue = this.form[key] || "";
+        
+        // Ensure text field border is visible and black
+        field.borderStyle = { width: 1 };
+        field.lineWidth = 1;
+        field.strokeColor = [0, 0, 0];
+        field.fillColor = [255, 255, 255];
+        
+        doc.addField(field);
+        y += 10;
+    };
+
+    const addChoiceField = (label, key, options) => {
+      // Print the field label
+      doc.setFontSize(10); // label
+
+      doc.text(`${label}:`, 10, y + 5);
+
+      // Get the coordinates for the dropdown
+      const x = 65;
+      const yCoord = y;
+      const width = 60;
+      const height = 8;
+
+      // Draw a rectangle as a manual border
+      doc.setDrawColor(0); // Set stroke color to black
+      doc.setFillColor(255); // Set fill color to white
+      doc.rect(x, yCoord, width, height, 'FD'); // 'FD' for Fill and Draw
+
+      // Draw the initial text directly onto the PDF
+      const selectedValue = this.form[key] || 'not selected'; // Use first option as fallback
+      doc.setFont("Helvetica", "Normal");
+      doc.setFontSize(12);                // sets font size in points
+      doc.setTextColor(0); // Set text color to black (grayscale)
+      doc.text(selectedValue, x + 2, yCoord + 5); // Add a small offset for alignment
+
+      // Create the ComboBox field (made transparent)
+      const field = new jsPDF.AcroForm.ComboBox();
+      field.Rect = [x, yCoord, width, height];
+      field.fieldName = key;
+      field.setOptions(options);
+      field.value = selectedValue;
+      
+      // Make the field's internal text transparent and border invisible
+      field.textColor = [255, 255, 255, 0]; // Transparent text
+      field.borderStyle = { width: 0 }; 
+      field.fillColor = [255, 255, 255, 0]; // Transparent fill color
+      
+      doc.addField(field);
+      y += 10;
+    };
+       const section = (title) => { y += 5; doc.text(`${title}`, 10, y); y += 8; };
+
+        section("Applicant");
+        this.mainApplicant.forEach(q => {
+          if (y > 260) { doc.addPage(); y = 20; }
+          if (q.type === 'radio') addChoiceField(q.label, q.key, q.options);
+          else addTextField(q.label, q.key);
+        });
+
+        section("Spouse Details");
+        this.spouse.forEach(q => { if (y > 260) { doc.addPage(); y = 20; } addTextField(q.label, q.key); });
+
+        section("Emergency Contact");
+        this.emergency.forEach(q => { if (y > 260) { doc.addPage(); y = 20; } addTextField(q.label, q.key); });
+
+        // Signature
+        const sig = document.getElementById('sig').toDataURL('image/png');
+        doc.addImage(sig, 'PNG', 10, y + 10, 60, 25);
+        doc.text("Applicant Signature", 10, y + 40);
+
+        doc.save("Mortgage_Form_Fillable.pdf");
+      },
+      async shareWhatsApp() {
+        const pdfBlob = this.generatePDF(true);
+        if (navigator.canShare && navigator.canShare({ files: [new File([pdfBlob], "Mortgage_Form.pdf")] })) {
+          await this.shareLocally(); // Mobile: direct sharing
+        } else {
+          this.generatePDF(false); // Desktop: download manually
+          alert("✅ PDF saved locally! Attach it manually in WhatsApp.");
+        }
+      }
+    }
+}).mount('#app');
+</script>
+</body>
+</html>

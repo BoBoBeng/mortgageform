@@ -290,19 +290,13 @@ createApp({
 
         doc.save("Mortgage_Form_Fillable.pdf");
       },
-     async shareWhatsApp() {
+      async shareWhatsApp() {
         const pdfBlob = this.generatePDF(true);
-        const file = new File([pdfBlob], "Mortgage_Form.pdf", { type: "application/pdf" });
-
-        if (navigator.canShare && navigator.canShare({ files: [file] })) {
-          await navigator.share({
-            title: "Mortgage Form",
-            text: "Here’s your mortgage form PDF.",
-            files: [file]
-          });
+        if (navigator.canShare && navigator.canShare({ files: [new File([pdfBlob], "Mortgage_Form.pdf")] })) {
+          await this.shareLocally(); // Mobile: direct sharing
         } else {
-          this.generatePDF(false);
-          alert("✅ PDF saved locally! Please attach it manually in WhatsApp.");
+          this.generatePDF(false); // Desktop: download manually
+          alert("✅ PDF saved locally! Attach it manually in WhatsApp.");
         }
       }
     }
